@@ -1,0 +1,33 @@
+在虚拟机下使用lsusb找不到"Espressif USB JTAG/serial debug unit"设备解决方法
+1.在Windows的设备管理器中发现 ESP32 USB 驱动异常，需要使用zadig开源软件安装 ESP32 USB 驱动，下载地址为：
+https://zadig.akeo.ie/
+2.安装好 ESP32 USB 驱动后在虚拟机右下角找到"USB JTAG/serial debug unit"图标，并将设备连接到虚拟机
+3.长按ESP32开发板上的BOOT按键，再点击RESTR按键，最后松开BOOT按键
+4.在终端输入lsusb就可以看到"Espressif USB JTAG/serial debug unit"设备
+
+使用JTAG下载程序时OpenOCD报错：Error: libusb_open() failed with LIBUSB_ERROR_ACCES
+1.创建一个 udev 规则文件，例如 sudo vim /etc/udev/rules.d/99-usb.rules
+2.输入以下内容：SUBSYSTEM=="usb", MODE="0660", GROUP="plugdev"
+3.将你的用户添加到plugdev组：sudo usermod -a -G plugdev $USER
+4.重新连接设备或重新启动，使规则生效
+
+vscode中安装ESP-IDF出现的一些问题
+1.安装插件过程中如果卡在下载eim这一步，解决方法是：
+(1). cd .espressif/eim/
+(2). cp eim.tmp eim
+(3). 关掉并重新打开vscode
+2.vscode显示安装完插件后要手动运行install.sh脚本，否则编译micro_ros会报警找不到python
+(1). cd .espressif/v5.5.4/esp-idf/
+(2). ./install.sh
+
+安装fmt库
+1.idf.py add-dependency espressif/fmt
+
+ESP-IDF编译micro_ros
+1. 打开一个环境干净的终端，这个终端不能 source /opt/ros/humble/setup.bash
+2. source .espressif/v5.5.4/esp-idf/export.sh
+3. pip3 install catkin_pkg colcon-common-extensions lark empy==3.3.4
+4. cd your/esp32/project
+5. git clone -b humble --recursive https://github.com/micro-ROS/micro_ros_espidf_component components/micro_ros
+6. 使用 code . 打开当前ESP32工程
+7. 点击左边ESP-IDF面板上的"Classic Menuconfig"图标
