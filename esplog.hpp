@@ -79,8 +79,7 @@ public:
 private:
   static inline level _level = level::none;
   static inline int _server_sock = -1; // TCP 服务器监听 socket，-1 表示未初始化
-  static inline SemaphoreHandle_t _clients_mutex =
-      nullptr; // 保护 _client_socks / _client_addrs
+  static inline SemaphoreHandle_t _clients_mutex = nullptr; // 保护客户端信息
   static inline std::vector<std::pair<int, sockaddr_in>>
       _client_info; // 客户端信息
   static constexpr std::string_view GREEN = "\033[32m";
