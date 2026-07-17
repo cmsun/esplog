@@ -1,2 +1,3 @@
 test/build
 test/managed_components
+test/.cache

@@ -16,29 +16,31 @@
 #include "fmt/chrono.h"
 
 class esplog {
-
 public:
   esplog() = delete;
   ~esplog() = delete;
 
   enum class level : uint8_t { info, debug, warn, error, none };
 
-  // 如果 wifi_print 参数为 true ，则通过 WIFI 的 TCP 服务器发送日志，否则通过
-  // idf.py menuconfig 配置的 Console 打印日志。TCP 服务器绑定端口
-  // 9000，客户端连接后即可接收日志。
-  static void init(level l, bool wifi_print = false) {
+  // 当ssid不为空时 ，则通过 WIFI 的 TCP 服务器发送日志，否则通过
+  // idf.py menuconfig 配置的 Console 打印日志。TCP 服务器绑定端
+  // 口9000，客户端连接后即可接收日志。
+  static void init(level l, std::string_view ssid = "",
+                   std::string_view password = "",
+                   std::array<uint8_t, 4> ip = {192, 168, 3, 1},
+                   int port = 9000) {
     // 设置日志等级
     _level = l;
     // 重定向标准输出到WIFI打印函数
-    if (wifi_print) {
+    if (!ssid.empty()) {
       stdout = fwopen(NULL, &stdout_redirection);
       setvbuf(stdout, NULL, _IONBF, 0);
-      // 初始化 WIFI，创建热点SSID为"ESP32-AP"，密码为"12345678"
-      wifi_init("ESP32-AP", "12345678");
-      // 设置主机 IP 地址和 DHCP 的分配范围
-      dhcp_init();
-      // 创建TCP服务器，在端口号9000上监听客户端连接
-      tcp_server_init(9000);
+      // 初始化 WIFI，创建热点
+      wifi_init(ssid, password);
+      // 设置主机 IP 地址和 DHCP 的地址分配范围
+      dhcp_init(ip);
+      // 创建TCP服务器，默认在端口号9000上监听客户端连接
+      tcp_server_init(port);
     }
   }
 
@@ -89,15 +91,13 @@ private:
 
   // 类型擦除的底层实现：使用 fmt::string_view + fmt::format_args，
   // 避免空参数包导致的 format_string<> 推导失败
-  static inline void esplog_impl(std::string_view color,
-                                 fmt::string_view fmt,
+  static inline void esplog_impl(std::string_view color, fmt::string_view fmt,
                                  fmt::format_args args) {
     char buff[512];
     auto now = std::chrono::system_clock::now();
     auto result_time = fmt::format_to_n(buff, sizeof(buff), "[{}]: ", now);
-    auto result_fmt =
-        fmt::vformat_to_n(buff + result_time.size,
-                          sizeof(buff) - result_time.size, fmt, args);
+    auto result_fmt = fmt::vformat_to_n(
+        buff + result_time.size, sizeof(buff) - result_time.size, fmt, args);
     fwrite(color.data(), 1, color.size(), stdout);
     fwrite(buff, 1, result_time.size + result_fmt.size, stdout);
     fwrite(RESET.data(), 1, RESET.size(), stdout);
@@ -155,14 +155,20 @@ private:
     // 3.2 拷贝密码；限制长度 < 64，确保末尾保留 '\0' 供 driver 推断长度
     size_t pwd_len =
         std::min<size_t>(password.size(), sizeof(ap_config.ap.password) - 1);
-    memcpy(ap_config.ap.password, password.data(), pwd_len);
+    if (pwd_len >= 8 && pwd_len <= 63) {
+      // 密码长度符合 WPA/WPA2 要求
+      ap_config.ap.authmode = WIFI_AUTH_WPA_WPA2_PSK;
+      memcpy(ap_config.ap.password, password.data(), pwd_len);
+    } else {
+      // 密码长度不符合要求，使用开放认证
+      ap_config.ap.authmode = WIFI_AUTH_OPEN;
+    }
 
     // 3.3 其余 AP 参数
-    ap_config.ap.max_connection = 4;                // 最大允许 4 个 STA 接入
-    ap_config.ap.authmode = WIFI_AUTH_WPA_WPA2_PSK; // 加密方式
-    ap_config.ap.channel = 6;                       // 工作信道
-    ap_config.ap.ssid_hidden = 0;                   // 不隐藏 SSID
-    ap_config.ap.beacon_interval = 100;             // 信标间隔(ms)
+    ap_config.ap.max_connection = 4;    // 最大允许 4 个 STA 接入
+    ap_config.ap.channel = 6;           // 工作信道
+    ap_config.ap.ssid_hidden = 0;       // 不隐藏 SSID
+    ap_config.ap.beacon_interval = 100; // 信标间隔(ms)
 
     // 4. 应用配置并启动 WiFi
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
@@ -173,12 +179,12 @@ private:
    * @brief 初始化 SoftAP 的 DHCP 服务器
    *
    * 完成两件事：
-   *  1. 为 AP 主机设置静态 IP（192.168.3.1/24）；
+   *  1. 为 AP 主机设置静态 IP，比如（192.168.3.1/24）；
    *  2. 设置 DHCP 服务器下发给接入设备分配同一个网段的 IP 地址
    * ESP-IDF 已内置 DHCP 服务器，直接调用 esp-netif 接口即可，
    * 无需自行实现 67 端口的 socket 服务。
    */
-  static void dhcp_init() {
+  static void dhcp_init(std::array<uint8_t, 4> ip) {
     // 1. 初始化 esp-netif 组件（幂等，重复调用安全）
     ESP_ERROR_CHECK(esp_netif_init());
 
@@ -186,9 +192,9 @@ private:
     esp_netif_t *ap_netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
     if (ap_netif == nullptr) {
       ap_netif = esp_netif_create_default_wifi_ap();
-    }
-    if (ap_netif == nullptr) {
-      return; // 接口创建失败，放弃 DHCP 配置
+      if (ap_netif == nullptr) {
+        return; // 接口创建失败，放弃 DHCP 配置
+      }
     }
 
     // 3. 修改 AP 配置前必须先停止 DHCP 服务器
@@ -198,8 +204,8 @@ private:
     // IP 地址
     esp_netif_ip_info_t ip_info;
     memset(&ip_info, 0, sizeof(ip_info));
-    IP4_ADDR(&ip_info.ip, 192, 168, 3, 1);
-    IP4_ADDR(&ip_info.gw, 192, 168, 3, 1);
+    IP4_ADDR(&ip_info.ip, ip[0], ip[1], ip[2], ip[3]);
+    IP4_ADDR(&ip_info.gw, ip[0], ip[1], ip[2], ip[3]);
     IP4_ADDR(&ip_info.netmask, 255, 255, 255, 0);
     ESP_ERROR_CHECK(esp_netif_set_ip_info(ap_netif, &ip_info));
 

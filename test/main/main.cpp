@@ -60,7 +60,7 @@ extern "C" void app_main(void) {
   esp_netif_create_default_wifi_sta();
 
   // configure_uart0();
-  esplog::init(esplog::level::info, true);
+  esplog::init(esplog::level::info, "ESP32-LOG");
 
   while (true) {
     esplog::info("Hello World info.");
