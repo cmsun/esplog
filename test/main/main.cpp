@@ -63,8 +63,8 @@ extern "C" void app_main(void) {
   esplog::init(esplog::level::info, "ESP32-LOG");
 
   while (true) {
-    esplog::info("Hello World info.");
     esplog::debug("Hello World debug.");
+    esplog::info("Hello World info.");
     esplog::warn("Hello World warn.");
     esplog::error("Hello World error.");
 

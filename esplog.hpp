@@ -20,7 +20,7 @@ public:
   esplog() = delete;
   ~esplog() = delete;
 
-  enum class level : uint8_t { info, debug, warn, error, none };
+  enum class level : uint8_t { debug, info, warn, error, none };
 
   // 当ssid不为空时 ，则通过 WIFI 的 TCP 服务器发送日志，否则通过
   // idf.py menuconfig 配置的 Console 打印日志。TCP 服务器绑定端
@@ -44,19 +44,19 @@ public:
     }
   }
 
-  // 信息日志（绿色）
-  template <typename... Args>
-  static inline void info(fmt::format_string<Args...> fmt, Args &&...args) {
-    if (_level <= level::info) {
-      esplog_impl(GREEN, fmt, fmt::make_format_args(args...));
-    }
-  }
-
   // 调试日志（蓝色）
   template <typename... Args>
   static inline void debug(fmt::format_string<Args...> fmt, Args &&...args) {
     if (_level <= level::debug) {
       esplog_impl(BLUE, fmt, fmt::make_format_args(args...));
+    }
+  }
+
+  // 信息日志（绿色）
+  template <typename... Args>
+  static inline void info(fmt::format_string<Args...> fmt, Args &&...args) {
+    if (_level <= level::info) {
+      esplog_impl(GREEN, fmt, fmt::make_format_args(args...));
     }
   }
 
