@@ -60,7 +60,7 @@ public:
     {
         if (_level <= level::debug)
         {
-            esplog_impl(BLUE, fmt, fmt::make_format_args(args...));
+            esplog_impl(BLUE, "debug", fmt, fmt::make_format_args(args...));
         }
     }
 
@@ -69,7 +69,7 @@ public:
     {
         if (_level <= level::info)
         {
-            esplog_impl(GREEN, fmt, fmt::make_format_args(args...));
+            esplog_impl(GREEN, "info", fmt, fmt::make_format_args(args...));
         }
     }
 
@@ -78,7 +78,7 @@ public:
     {
         if (_level <= level::warn)
         {
-            esplog_impl(YELLOW, fmt, fmt::make_format_args(args...));
+            esplog_impl(YELLOW, "warn", fmt, fmt::make_format_args(args...));
         }
     }
 
@@ -87,7 +87,7 @@ public:
     {
         if (_level <= level::error)
         {
-            esplog_impl(RED, fmt, fmt::make_format_args(args...));
+            esplog_impl(RED, "error", fmt, fmt::make_format_args(args...));
         }
     }
 
@@ -104,11 +104,11 @@ private:
 
     // 类型擦除的底层实现：使用 fmt::string_view + fmt::format_args，
     // 避免空参数包导致的 format_string<> 推导失败
-    static inline void esplog_impl(std::string_view color, fmt::string_view fmt, fmt::format_args args)
+    static inline void esplog_impl(std::string_view color, std::string_view level, fmt::string_view fmt, fmt::format_args args)
     {
         char buff[512];
         auto now = std::chrono::system_clock::now();
-        auto result_time = fmt::format_to_n(buff, sizeof(buff), "[{}]: ", now);
+        auto result_time = fmt::format_to_n(buff, sizeof(buff), "[{}][{}]: ", now, level);
         auto result_fmt = fmt::vformat_to_n(buff + result_time.size, sizeof(buff) - result_time.size, fmt, args);
         fwrite(color.data(), 1, color.size(), stdout);
         fwrite(buff, 1, result_time.size + result_fmt.size, stdout);
